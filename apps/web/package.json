@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@bridge/shared": "*",
+    "@elevenlabs/client": "^1.7.1",
     "@livekit/components-react": "^2.6.3",
     "jose": "^5.9.6",
     "livekit-client": "^2.7.4",
