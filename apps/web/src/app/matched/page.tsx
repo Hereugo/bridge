@@ -10,6 +10,7 @@ export default function MatchedPage() {
   const router = useRouter();
   const [journey, setJourney] = useState<Journey | null>(null);
   const [joining, setJoining] = useState(false);
+  const [joinError, setJoinError] = useState<string | null>(null);
 
   useEffect(() => {
     if (status === "unauthenticated") router.replace("/login");
@@ -65,26 +66,43 @@ export default function MatchedPage() {
         )}
       </section>
 
-      <button
-        type="button"
-        className="btn-primary mx-auto flex min-h-[52px] w-full max-w-md items-center justify-center text-base"
-        disabled={joining || !journey.match_id}
-        onClick={async () => {
-          if (!session?.apiToken) return;
-          setJoining(true);
-          try {
-            await apiFetch("/journey/advance-wingman", {
-              method: "POST",
-              token: session.apiToken,
-            });
-            router.push("/call");
-          } finally {
-            setJoining(false);
-          }
-        }}
-      >
-        {joining ? "Opening call…" : "Join introduction call"}
-      </button>
+      {!journey.match_id ? (
+        <p className="text-center text-sm text-bridge-muted">
+          No match on your account yet. Go back to Know and tap &quot;I&apos;m ready to be
+          matched&quot;, or wait if your partner hasn&apos;t finished yet.
+        </p>
+      ) : (
+        <>
+          {joinError && (
+            <p className="rounded-xl border border-red-400/30 bg-red-950/30 px-4 py-3 text-sm text-red-200/90">
+              {joinError}
+            </p>
+          )}
+          <button
+            type="button"
+            className="btn-primary mx-auto flex min-h-[52px] w-full max-w-md items-center justify-center text-base"
+            disabled={joining}
+            onClick={async () => {
+              if (!session?.apiToken) return;
+              setJoining(true);
+              setJoinError(null);
+              try {
+                await apiFetch("/journey/advance-wingman", {
+                  method: "POST",
+                  token: session.apiToken,
+                });
+                router.push("/call");
+              } catch (e: unknown) {
+                setJoinError(e instanceof Error ? e.message : "Could not start the call");
+              } finally {
+                setJoining(false);
+              }
+            }}
+          >
+            {joining ? "Opening call…" : "Join introduction call"}
+          </button>
+        </>
+      )}
     </div>
   );
 }

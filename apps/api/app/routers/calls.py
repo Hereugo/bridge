@@ -9,6 +9,7 @@ from app.config import settings
 from app.database import get_db
 from app.models import ConnectionCard, Match, MatchStatus, Phase, User, UserJourney, WingmanSession
 from app.schemas import LiveKitTokenOut
+from app.services.livekit_dispatch import ensure_wingman_dispatched
 from app.services.livekit_tokens import create_room_token, normalize_livekit_url, room_name_for_match
 
 router = APIRouter(prefix="/calls", tags=["calls"])
@@ -49,9 +50,13 @@ def get_call_token(
     if not session:
         session = WingmanSession(match_id=match_id, livekit_room_name=room_name)
         db.add(session)
-    if not session.started_at:
+    first_join = not session.started_at
+    if first_join:
         session.started_at = datetime.now(timezone.utc)
     db.commit()
+
+    if first_join:
+        ensure_wingman_dispatched(room_name)
 
     display = user.email.split("@")[0].replace(".", " ").split("_")[0].capitalize()
     token = create_room_token(room_name, str(user.id), display)

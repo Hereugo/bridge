@@ -29,6 +29,17 @@ def create_room_token(room_name: str, identity: str, name: str) -> str:
             can_subscribe=True,
         )
     )
+    if settings.wingman_agent_name:
+        token.with_room_config(
+            api.RoomConfiguration(
+                agents=[
+                    api.RoomAgentDispatch(
+                        agent_name=settings.wingman_agent_name,
+                        metadata="bridge-wingman",
+                    )
+                ],
+            )
+        )
     return token.to_jwt()
 
 

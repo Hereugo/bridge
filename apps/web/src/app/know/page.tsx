@@ -57,18 +57,18 @@ export default function KnowPage() {
   }, [load]);
 
   useEffect(() => {
-    if (journey?.phase !== "MATCHING" || reveal?.match_ready) return;
+    if (!journey?.summary_ready || journey.match_id || reveal?.match_ready) return;
     const id = window.setInterval(() => {
       load().catch(() => {});
     }, 3000);
     return () => window.clearInterval(id);
-  }, [journey?.phase, reveal?.match_ready, load]);
+  }, [journey?.summary_ready, journey?.match_id, reveal?.match_ready, load]);
 
   useEffect(() => {
-    if (journey?.phase === "MATCHED" && journey.match_id) {
+    if (journey?.match_id) {
       router.replace("/matched");
     }
-  }, [journey?.phase, journey?.match_id, router]);
+  }, [journey?.match_id, router]);
 
   async function registerConversation(conversationId: string) {
     if (!session?.user?.id) return;
@@ -96,7 +96,7 @@ export default function KnowPage() {
         body: JSON.stringify({ structured_summary: DEMO_SUMMARY }),
       });
       setJourney(updated);
-      if (updated.phase === "MATCHED" && updated.match_id) {
+      if (updated.match_id) {
         router.push("/matched");
         return;
       }
@@ -120,7 +120,9 @@ export default function KnowPage() {
 
   const endsAt = journey.phase_ends_at ? new Date(journey.phase_ends_at) : null;
   const canRequestMatch =
-    (journey.phase === "KNOW" || journey.phase === "MATCHING") && !reveal?.match_ready;
+    (journey.phase === "KNOW" || journey.phase === "MATCHING") &&
+    !journey.match_id &&
+    !reveal?.match_ready;
 
   return (
     <div className="space-y-8 pb-8">

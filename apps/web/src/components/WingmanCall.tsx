@@ -8,7 +8,7 @@ import {
   useLocalParticipant,
   useParticipants,
 } from "@livekit/components-react";
-import { ConnectionState, Track } from "livekit-client";
+import { ConnectionState, Participant, Track } from "livekit-client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { VoiceOrb, type VoiceOrbMode } from "@/components/VoiceOrb";
 import { apiFetch } from "@/lib/api";
@@ -21,9 +21,14 @@ function normalizeLiveKitUrl(url: string): string {
   return url;
 }
 
-function isWingmanIdentity(identity: string): boolean {
-  const low = identity.toLowerCase();
-  return low.startsWith("agent") || low.includes("wingman");
+function isWingmanParticipant(participant: Participant): boolean {
+  if (participant.isAgent) return true;
+  const low = participant.identity.toLowerCase();
+  return (
+    low.startsWith("agent") ||
+    low.includes("wingman") ||
+    low.startsWith("bridge-wingman")
+  );
 }
 
 interface CallToken {
@@ -47,10 +52,8 @@ function useOrbMode(): VoiceOrbMode {
   const { localParticipant } = useLocalParticipant();
   const participants = useParticipants();
 
-  const remoteHumans = participants.filter(
-    (p) => !p.isLocal && !isWingmanIdentity(p.identity)
-  );
-  const wingman = participants.find((p) => isWingmanIdentity(p.identity));
+  const remoteHumans = participants.filter((p) => !p.isLocal && !isWingmanParticipant(p));
+  const wingman = participants.find((p) => isWingmanParticipant(p));
   const partnerSpeaking = remoteHumans.some((p) => p.isSpeaking);
   const wingmanSpeaking = wingman?.isSpeaking ?? false;
   const localSpeaking = localParticipant.isSpeaking;
@@ -98,11 +101,14 @@ function InCallUI({
   const participants = useParticipants();
   const orbMode = useOrbMode();
 
-  const remoteHumans = participants.filter(
-    (p) => !p.isLocal && !isWingmanIdentity(p.identity)
-  );
-  const wingmanHere = participants.some((p) => isWingmanIdentity(p.identity));
+  const remoteHumans = participants.filter((p) => !p.isLocal && !isWingmanParticipant(p));
+  const wingmanHere = participants.some((p) => isWingmanParticipant(p));
   const partnerHere = remoteHumans.length > 0;
+  const companionStatus = wingmanHere
+    ? "Listening quietly"
+    : connection === ConnectionState.Connected
+      ? "Joining…"
+      : "Waiting for room…";
 
   const statusLabel = useMemo(() => {
     if (connection === ConnectionState.Reconnecting) return "Reconnecting…";
@@ -140,11 +146,7 @@ function InCallUI({
             status={partnerHere ? (remoteHumans[0]?.isSpeaking ? "Speaking" : "Here") : "Not yet"}
             muted={!partnerHere}
           />
-          <ParticipantRow
-            label="Companion"
-            status={wingmanHere ? "Listening quietly" : "Joining…"}
-            muted={!wingmanHere}
-          />
+          <ParticipantRow label="Companion" status={companionStatus} muted={!wingmanHere} />
         </ul>
 
         <div className="bridge-call-controls mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-center">

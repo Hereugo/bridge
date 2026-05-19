@@ -21,7 +21,22 @@ from app.services.phase import ensure_journey, start_know_phase
 router = APIRouter(prefix="/journey", tags=["journey"])
 
 
+def _sync_phase_with_match(db: Session, user: User, journey: UserJourney) -> None:
+    """If a match exists but journey is still KNOW/MATCHING, align phase (fixes stale client state)."""
+    match = (
+        db.query(Match)
+        .filter((Match.user_a_id == user.id) | (Match.user_b_id == user.id))
+        .first()
+    )
+    if match and journey.phase in (Phase.KNOW, Phase.MATCHING):
+        journey.phase = Phase.MATCHED
+        user.current_phase = Phase.MATCHED
+        db.commit()
+
+
 def _journey_response(db: Session, user: User, journey: UserJourney) -> JourneyOut:
+    _sync_phase_with_match(db, user, journey)
+    db.refresh(journey)
     match_id = None
     scheduled_call_at = None
     connection_card = None
@@ -159,6 +174,9 @@ async def submit_summary(
     db.commit()
 
     await run_matching_for_user(db, user.id)
+    db.refresh(user)
+    db.refresh(journey)
+    _sync_phase_with_match(db, user, journey)
     db.refresh(journey)
     return _journey_response(db, user, journey)
 
@@ -207,7 +225,11 @@ def advance_to_wingman(
     )
     if not match:
         raise HTTPException(status_code=400, detail="No match found")
-    if journey.phase not in (Phase.MATCHED, Phase.WINGMAN):
+    if journey.phase in (Phase.KNOW, Phase.MATCHING):
+        journey.phase = Phase.MATCHED
+        user.current_phase = Phase.MATCHED
+        db.commit()
+    elif journey.phase not in (Phase.MATCHED, Phase.WINGMAN):
         raise HTTPException(
             status_code=400,
             detail="Complete the Know phase and matching before joining the introduction call",

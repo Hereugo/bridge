@@ -18,6 +18,7 @@ from livekit.plugins import elevenlabs, silero
 logger = logging.getLogger("bridge.wingman")
 API_URL = os.getenv("API_URL", "http://localhost:8000").rstrip("/")
 AGENT_KEY = os.getenv("BRIDGE_AGENT_INTERNAL_KEY", "dev-agent-key")
+AGENT_NAME = os.getenv("WINGMAN_AGENT_NAME", "bridge-wingman")
 STALL_SECONDS = float(os.getenv("WINGMAN_STALL_SECONDS", "45"))
 
 
@@ -149,4 +150,4 @@ async def entrypoint(ctx: JobContext):
 
 
 if __name__ == "__main__":
-    cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint))
+    cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint, agent_name=AGENT_NAME))

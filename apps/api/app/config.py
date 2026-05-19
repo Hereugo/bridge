@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     livekit_api_key: str = ""
     livekit_api_secret: str = ""
     bridge_agent_internal_key: str = "dev-agent-key"
+    wingman_agent_name: str = "bridge-wingman"
 
     openai_api_key: str = ""
     anthropic_api_key: str = ""

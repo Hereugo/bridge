@@ -39,7 +39,16 @@ async def try_match_first_two_ready_users(db: Session) -> Match | None:
     matched_ids = _matched_user_ids(db)
     queue: list[tuple[datetime, UserJourney, Summary]] = []
 
-    journeys = db.query(UserJourney).filter(UserJourney.summary_ready.is_(True)).all()
+    journeys = (
+        db.query(UserJourney)
+        .join(User, User.id == UserJourney.user_id)
+        .filter(
+            UserJourney.summary_ready.is_(True),
+            UserJourney.phase.in_([Phase.KNOW, Phase.MATCHING]),
+            User.deleted_at.is_(None),
+        )
+        .all()
+    )
     for journey in journeys:
         if journey.user_id in matched_ids:
             continue
@@ -250,27 +259,31 @@ Respond ONLY with JSON:
   "compatibility_notes": "internal brief note"
 }}"""
 
-    if settings.matching_llm_provider == "anthropic" and settings.anthropic_api_key:
-        import anthropic
+    try:
+        if settings.matching_llm_provider == "anthropic" and settings.anthropic_api_key:
+            import anthropic
 
-        client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-        msg = client.messages.create(
-            model="claude-3-5-haiku-latest",
-            max_tokens=512,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        text = msg.content[0].text
-    elif settings.openai_api_key:
-        from openai import OpenAI
+            client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+            msg = client.messages.create(
+                model="claude-3-5-haiku-latest",
+                max_tokens=512,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            text = msg.content[0].text
+        elif settings.openai_api_key:
+            from openai import OpenAI
 
-        client = OpenAI(api_key=settings.openai_api_key)
-        resp = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            response_format={"type": "json_object"},
-        )
-        text = resp.choices[0].message.content or "{}"
-    else:
+            client = OpenAI(api_key=settings.openai_api_key)
+            resp = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_object"},
+            )
+            text = resp.choices[0].message.content or "{}"
+        else:
+            raise ValueError("no_llm_key")
+        return _parse_llm_json(text)
+    except Exception:
         interests_a = summary_a.get("interests", [])
         interests_b = summary_b.get("interests", [])
         overlap = list(set(interests_a) & set(interests_b)) or interests_a[:1] or ["good conversation"]
@@ -283,5 +296,3 @@ Respond ONLY with JSON:
             "shared_topics": overlap[:3],
             "compatibility_notes": "fallback matcher",
         }
-
-    return _parse_llm_json(text)
