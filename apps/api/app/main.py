@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.database import Base, SessionLocal, engine
+from app.middleware import StripApiPrefixMiddleware
 from app.routers import admin, auth, calls, internal, journey, matches, personas, users, webhooks
 from app.seed import seed_personas
 
@@ -36,6 +37,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(StripApiPrefixMiddleware)
 
 app.include_router(auth.router)
 app.include_router(personas.router)
