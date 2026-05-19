@@ -43,6 +43,8 @@ class Settings(BaseSettings):
     phase2_duration_days: int = 7
     phase2_duration_minutes: int = 30
     matching_lead_fraction: float = 0.1
+    # PoC: pair the first two summary-ready users (FIFO). Set false for per-user candidate loop.
+    matching_simple_first_pair: bool = True
 
     summary_ttl_days: int = 7
     card_ttl_days: int = 30

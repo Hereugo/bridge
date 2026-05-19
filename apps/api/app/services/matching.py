@@ -17,6 +17,55 @@ from app.models import (
 )
 
 
+def _matched_user_ids(db: Session) -> set[UUID]:
+    ids: set[UUID] = set()
+    for user_a_id, user_b_id in db.query(Match.user_a_id, Match.user_b_id).all():
+        ids.add(user_a_id)
+        ids.add(user_b_id)
+    return ids
+
+
+def _latest_summary(db: Session, user_id: UUID) -> Summary | None:
+    return (
+        db.query(Summary)
+        .filter(Summary.user_id == user_id, Summary.deleted_at.is_(None))
+        .order_by(Summary.created_at.desc())
+        .first()
+    )
+
+
+async def try_match_first_two_ready_users(db: Session) -> Match | None:
+    """Pair the two oldest summary-ready users who are not already in a match."""
+    matched_ids = _matched_user_ids(db)
+    queue: list[tuple[datetime, UserJourney, Summary]] = []
+
+    journeys = db.query(UserJourney).filter(UserJourney.summary_ready.is_(True)).all()
+    for journey in journeys:
+        if journey.user_id in matched_ids:
+            continue
+        summary = _latest_summary(db, journey.user_id)
+        if not summary:
+            continue
+        queue.append((summary.created_at, journey, summary))
+
+    if len(queue) < 2:
+        return None
+
+    queue.sort(key=lambda row: row[0])
+    _, journey_a, summary_a = queue[0]
+    _, journey_b, summary_b = queue[1]
+    if journey_a.user_id == journey_b.user_id:
+        return None
+
+    return await _generate_match(
+        db,
+        summary_a.structured_summary,
+        summary_b.structured_summary,
+        journey_a.user_id,
+        journey_b.user_id,
+    )
+
+
 def _parse_llm_json(text: str) -> dict:
     text = text.strip()
     match = re.search(r"\{[\s\S]*\}", text)
@@ -66,13 +115,7 @@ async def run_matching_for_user(db: Session, user_id: UUID) -> Match | None:
     if not journey or not journey.summary_ready:
         return None
 
-    summary = (
-        db.query(Summary)
-        .filter(Summary.user_id == user_id, Summary.deleted_at.is_(None))
-        .order_by(Summary.created_at.desc())
-        .first()
-    )
-    if not summary:
+    if not _latest_summary(db, user_id):
         return None
 
     existing = (
@@ -82,6 +125,20 @@ async def run_matching_for_user(db: Session, user_id: UUID) -> Match | None:
     )
     if existing:
         return existing
+
+    if settings.matching_simple_first_pair:
+        match = await try_match_first_two_ready_users(db)
+        if match and user_id in (match.user_a_id, match.user_b_id):
+            return match
+        return (
+            db.query(Match)
+            .filter((Match.user_a_id == user_id) | (Match.user_b_id == user_id))
+            .first()
+        )
+
+    summary = _latest_summary(db, user_id)
+    if not summary:
+        return None
 
     candidates = (
         db.query(UserJourney)

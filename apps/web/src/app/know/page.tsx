@@ -22,6 +22,7 @@ export default function KnowPage() {
     partner_first_name?: string;
   } | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [matchMessage, setMatchMessage] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!session?.apiToken) return;
@@ -45,6 +46,14 @@ export default function KnowPage() {
   useEffect(() => {
     load().catch(() => {});
   }, [load]);
+
+  useEffect(() => {
+    if (journey?.phase !== "MATCHING" || reveal?.match_ready) return;
+    const id = window.setInterval(() => {
+      load().catch(() => {});
+    }, 3000);
+    return () => window.clearInterval(id);
+  }, [journey?.phase, reveal?.match_ready, load]);
 
   async function registerConversation(conversationId: string) {
     if (!session?.user?.id) return;
@@ -76,12 +85,21 @@ export default function KnowPage() {
       notes: "PoC demo summary",
     };
     try {
-      await apiFetch("/journey/summary", {
+      const updated = await apiFetch<Journey>("/journey/summary", {
         method: "POST",
         token: session.apiToken,
         body: JSON.stringify({ structured_summary: summary }),
       });
-      await load();
+      setJourney(updated);
+      if (updated.phase === "MATCHED" && updated.match_id) {
+        setMatchMessage(null);
+        await load();
+      } else {
+        setMatchMessage(
+          "You’re in the queue — open a second browser (incognito) as another user and tap the same button there."
+        );
+        await load();
+      }
     } finally {
       setSubmitting(false);
     }
@@ -116,6 +134,16 @@ export default function KnowPage() {
           </p>
         )}
       </header>
+
+      {journey.phase === "MATCHING" && !reveal?.match_ready && (
+        <div className="rounded-2xl border border-white/[0.08] bg-bridge-charcoal/50 p-5 text-sm text-bridge-muted">
+          <p className="font-medium text-bridge-cream">Waiting for your match</p>
+          <p className="mt-2 leading-relaxed">
+            {matchMessage ||
+              "Another person needs to finish their Know week before Bridge can introduce you two."}
+          </p>
+        </div>
+      )}
 
       {reveal?.match_ready && (
         <div className="relative overflow-hidden rounded-2xl border border-bridge-amber/35 bg-gradient-to-br from-bridge-amber/10 to-transparent p-6">
@@ -172,14 +200,21 @@ export default function KnowPage() {
       </div>
 
       {showDevTools && (
-        <button
-          type="button"
-          className="btn-ghost w-full text-sm opacity-80"
-          disabled={submitting}
-          onClick={endWeekDemo}
-        >
-          {submitting ? "Matching…" : "[Dev] End week & run matching"}
-        </button>
+        <div className="space-y-2">
+          <button
+            type="button"
+            className="btn-ghost w-full text-sm opacity-80"
+            disabled={submitting}
+            onClick={endWeekDemo}
+          >
+            {submitting ? "Matching…" : "[Dev] End week & run matching"}
+          </button>
+          <p className="text-center text-xs text-bridge-muted/80">
+            Skips the Know timer. Set{" "}
+            <code className="text-bridge-cream/70">PHASE2_DURATION_MINUTES=5</code> in{" "}
+            <code className="text-bridge-cream/70">.env</code> for a short week without this button.
+          </p>
+        </div>
       )}
     </div>
   );
