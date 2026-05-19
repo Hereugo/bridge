@@ -6,6 +6,7 @@ declare module "react" {
       "elevenlabs-convai": React.DetailedHTMLProps<
         React.HTMLAttributes<HTMLElement> & {
           id?: string;
+          className?: string;
           "agent-id"?: string;
           variant?: string;
           "action-text"?: string;

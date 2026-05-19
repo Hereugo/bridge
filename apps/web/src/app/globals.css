@@ -25,3 +25,16 @@ body {
     @apply rounded-2xl border border-white/5 bg-bridge-charcoal/80 p-6 shadow-xl backdrop-blur-sm;
   }
 }
+
+/* ElevenLabs embed: keep in DOM for shadow root, hide default floating UI */
+elevenlabs-convai.bridge-voice-widget-host {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  z-index: -1;
+}

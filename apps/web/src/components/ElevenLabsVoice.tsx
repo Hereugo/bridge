@@ -1,12 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useReducer, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { VoiceOrb, type VoiceOrbMode } from "@/components/VoiceOrb";
 
-type ConvaiElement = HTMLElement & {
-  startConversation?: () => void | Promise<void>;
-  endConversation?: () => void | Promise<void>;
-};
+type ConvaiElement = HTMLElement;
 
 interface Props {
   agentId: string;
@@ -14,18 +11,88 @@ interface Props {
 }
 
 const WIDGET_ID = "bridge-convai-widget";
-const WIDGET_SCRIPT_SRC = "https://elevenlabs.io/convai-widget/index.js";
+const WIDGET_SCRIPT_SRC = "https://unpkg.com/@elevenlabs/convai-widget-embed";
+const START_LABELS = ["start conversation", "start call", "start"];
+const END_LABELS = ["end conversation", "end call", "end"];
+const CONNECT_TIMEOUT_MS = 25_000;
 
 function getWidget(): ConvaiElement | null {
   return document.getElementById(WIDGET_ID) as ConvaiElement | null;
 }
 
-function extractConversationId(detail: unknown): string | undefined {
-  if (!detail || typeof detail !== "object") return undefined;
-  const d = detail as Record<string, unknown>;
-  if (typeof d.conversationId === "string") return d.conversationId;
-  if (typeof d.conversation_id === "string") return d.conversation_id;
-  return undefined;
+function waitForShadowRoot(el: HTMLElement, timeoutMs = 8000): Promise<ShadowRoot | null> {
+  return new Promise((resolve) => {
+    const deadline = Date.now() + timeoutMs;
+    const tick = () => {
+      if (el.shadowRoot) {
+        resolve(el.shadowRoot);
+        return;
+      }
+      if (Date.now() >= deadline) {
+        resolve(null);
+        return;
+      }
+      requestAnimationFrame(tick);
+    };
+    tick();
+  });
+}
+
+function buttonsIn(root: ParentNode): HTMLButtonElement[] {
+  return Array.from(root.querySelectorAll("button"));
+}
+
+function matchesLabel(btn: HTMLButtonElement, labels: string[]): boolean {
+  const hay = `${btn.title} ${btn.textContent ?? ""} ${btn.getAttribute("aria-label") ?? ""}`.toLowerCase();
+  return labels.some((l) => hay.includes(l));
+}
+
+function findStartButton(root: ShadowRoot): HTMLButtonElement | null {
+  return buttonsIn(root).find((b) => matchesLabel(b, START_LABELS) && !b.disabled) ?? null;
+}
+
+function findEndButton(root: ShadowRoot): HTMLButtonElement | null {
+  return buttonsIn(root).find((b) => matchesLabel(b, END_LABELS)) ?? null;
+}
+
+function findAgreeButton(root: ShadowRoot): HTMLButtonElement | null {
+  return buttonsIn(root).find((b) => /agree/i.test(b.textContent ?? "")) ?? null;
+}
+
+function readWidgetError(root: ShadowRoot): string | null {
+  const err = root.querySelector("[class*='_error_']");
+  if (err?.textContent?.trim()) return err.textContent.trim();
+  return null;
+}
+
+function isAgentSpeaking(root: ShadowRoot): boolean {
+  const text = root.textContent?.toLowerCase() ?? "";
+  return text.includes("speaking") || text.includes("assistant speaking");
+}
+
+async function clickWidgetStart(el: ConvaiElement): Promise<void> {
+  const root = await waitForShadowRoot(el);
+  if (!root) throw new Error("Voice widget did not load. Refresh and try again.");
+
+  const agree = findAgreeButton(root);
+  if (agree) {
+    agree.click();
+    await new Promise((r) => setTimeout(r, 150));
+  }
+
+  const start = findStartButton(root);
+  if (!start) {
+    const err = readWidgetError(root);
+    throw new Error(err ?? "Could not find the voice start control. Check your agent ID.");
+  }
+
+  start.click();
+}
+
+function clickWidgetEnd(el: ConvaiElement): void {
+  const root = el.shadowRoot;
+  if (!root) return;
+  findEndButton(root)?.click();
 }
 
 export function ElevenLabsVoice({ agentId, onConversationStart }: Props) {
@@ -35,13 +102,20 @@ export function ElevenLabsVoice({ agentId, onConversationStart }: Props) {
   const [connecting, setConnecting] = useState(false);
   const [userSpeaking, setUserSpeaking] = useState(false);
   const [agentGlowUntil, setAgentGlowUntil] = useState(0);
-  const rafRef = { current: null as number | null };
-  const audioCtxRef = { current: null as AudioContext | null };
-  const streamRef = { current: null as MediaStream | null };
+  const [error, setError] = useState<string | null>(null);
+  const startedRef = useRef(false);
+  const connectingRef = useRef(false);
+  const rafRef = useRef<number | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   const bumpAgentGlow = useCallback((ms: number) => {
     setAgentGlowUntil((t) => Math.max(t, Date.now() + ms));
   }, []);
+
+  useEffect(() => {
+    connectingRef.current = connecting;
+  }, [connecting]);
 
   useEffect(() => {
     const id = window.setInterval(() => pulse(), 200);
@@ -59,75 +133,71 @@ export function ElevenLabsVoice({ agentId, onConversationStart }: Props) {
     script.id = "elevenlabs-convai-script";
     script.src = WIDGET_SCRIPT_SRC;
     script.async = true;
+    script.type = "text/javascript";
     script.onload = () => setScriptReady(true);
-    script.onerror = () => setScriptReady(false);
+    script.onerror = () => {
+      setScriptReady(false);
+      setError("Could not load the voice module. Check your connection.");
+    };
     document.body.appendChild(script);
   }, [agentId]);
 
   useEffect(() => {
     if (!scriptReady || !agentId) return;
 
-    const onStarted = (e: Event) => {
-      setSessionActive(true);
-      setConnecting(false);
-      const ce = e as CustomEvent<unknown>;
-      const convId = extractConversationId(ce.detail) ?? `conv_${Date.now()}`;
-      onConversationStart?.(convId);
-      bumpAgentGlow(2800);
-    };
-
-    const onEnded = () => {
-      setSessionActive(false);
-      setConnecting(false);
-      setUserSpeaking(false);
-      setAgentGlowUntil(0);
-    };
-
-    const onMaybeAgent = () => bumpAgentGlow(3200);
-
+    let observer: MutationObserver | null = null;
     let cancelled = false;
-    let detach: (() => void) | undefined;
     let raf = 0;
     let attempts = 0;
-    const maxAttempts = 60;
 
-    const tryAttach = () => {
+    const attach = () => {
       if (cancelled) return;
-      const node = getWidget();
-      if (node) {
-        node.addEventListener("conversationStarted", onStarted);
-        node.addEventListener("conversationEnded", onEnded);
-        const extras = [
-          "speakingStarted",
-          "agentSpeaking",
-          "playbackStarted",
-          "audio",
-          "agent_response",
-          "modeChange",
-        ] as const;
-        const removers = extras.map((name) => {
-          const fn = () => onMaybeAgent();
-          node.addEventListener(name, fn);
-          return () => node.removeEventListener(name, fn);
-        });
-        detach = () => {
-          node.removeEventListener("conversationStarted", onStarted);
-          node.removeEventListener("conversationEnded", onEnded);
-          removers.forEach((fn) => fn());
-        };
+      const el = getWidget();
+      const root = el?.shadowRoot;
+      if (!el || !root) {
+        if (++attempts < 120) raf = requestAnimationFrame(attach);
         return;
       }
-      if (++attempts < maxAttempts) {
-        raf = requestAnimationFrame(tryAttach);
-      }
+
+      const sync = () => {
+        if (cancelled) return;
+        const widgetErr = readWidgetError(root);
+        if (widgetErr) setError(widgetErr);
+
+        const endBtn = findEndButton(root);
+        const startBtn = findStartButton(root);
+        const inCall = Boolean(endBtn && !startBtn);
+
+        if (inCall) {
+          setConnecting(false);
+          setSessionActive(true);
+          if (!startedRef.current) {
+            startedRef.current = true;
+            onConversationStart?.(`conv_${Date.now()}`);
+            bumpAgentGlow(2800);
+          }
+          if (isAgentSpeaking(root)) bumpAgentGlow(2200);
+        } else if (!connectingRef.current) {
+          if (startedRef.current) {
+            startedRef.current = false;
+            setSessionActive(false);
+            setUserSpeaking(false);
+            setAgentGlowUntil(0);
+          }
+        }
+      };
+
+      sync();
+      observer = new MutationObserver(sync);
+      observer.observe(root, { childList: true, subtree: true, characterData: true });
     };
 
-    raf = requestAnimationFrame(tryAttach);
+    raf = requestAnimationFrame(attach);
 
     return () => {
       cancelled = true;
       cancelAnimationFrame(raf);
-      detach?.();
+      observer?.disconnect();
     };
   }, [scriptReady, agentId, onConversationStart, bumpAgentGlow]);
 
@@ -221,6 +291,7 @@ export function ElevenLabsVoice({ agentId, onConversationStart }: Props) {
   })();
 
   const statusLabel = (() => {
+    if (error) return error;
     if (!scriptReady) return "Loading voice…";
     if (connecting) return "Connecting…";
     if (!sessionActive) return "Ready when you are";
@@ -230,28 +301,43 @@ export function ElevenLabsVoice({ agentId, onConversationStart }: Props) {
   })();
 
   async function handleStart() {
+    if (!scriptReady) return;
+    setError(null);
     setConnecting(true);
-    for (let i = 0; i < 30; i++) {
-      const el = getWidget();
-      if (el?.startConversation) {
-        try {
-          await Promise.resolve(el.startConversation());
+
+    try {
+      for (let i = 0; i < 40; i++) {
+        const el = getWidget();
+        if (el?.shadowRoot && findStartButton(el.shadowRoot)) {
+          await clickWidgetStart(el);
+          window.setTimeout(() => {
+            if (connectingRef.current && !startedRef.current) {
+              setConnecting(false);
+              setError(
+                "Could not connect. Check your agent ID, allow the microphone, and try again."
+              );
+            }
+          }, CONNECT_TIMEOUT_MS);
           return;
-        } catch {
-          break;
         }
+        await new Promise((r) => setTimeout(r, 100));
       }
-      await new Promise((r) => setTimeout(r, 80));
+      throw new Error("Voice widget is still loading. Wait a moment and try again.");
+    } catch (e) {
+      setConnecting(false);
+      setError(e instanceof Error ? e.message : "Could not start the conversation.");
     }
-    setConnecting(false);
   }
 
   function handleEnd() {
-    getWidget()?.endConversation?.();
+    const el = getWidget();
+    if (el) clickWidgetEnd(el);
+    startedRef.current = false;
     setSessionActive(false);
     setConnecting(false);
     setUserSpeaking(false);
     setAgentGlowUntil(0);
+    setError(null);
   }
 
   const isPlaceholder = agentId.includes("placeholder");
@@ -281,7 +367,11 @@ export function ElevenLabsVoice({ agentId, onConversationStart }: Props) {
 
         <div className="mt-6 flex flex-col items-center">
           <VoiceOrb mode={orbMode} />
-          <p className="mt-4 min-h-[3rem] max-w-xs text-center text-sm font-medium leading-snug text-bridge-cream/95">
+          <p
+            className={`mt-4 min-h-[3rem] max-w-xs text-center text-sm font-medium leading-snug ${
+              error ? "text-red-300/90" : "text-bridge-cream/95"
+            }`}
+          >
             {statusLabel}
           </p>
         </div>
@@ -291,7 +381,7 @@ export function ElevenLabsVoice({ agentId, onConversationStart }: Props) {
             <button
               type="button"
               className="btn-primary min-h-[48px] flex-1 px-8 py-3.5 text-base sm:max-w-xs sm:flex-none"
-              disabled={!scriptReady || connecting}
+              disabled={!scriptReady || connecting || isPlaceholder}
               onClick={handleStart}
             >
               {!scriptReady ? "Preparing…" : connecting ? "Starting…" : "Start conversation"}
@@ -314,20 +404,20 @@ export function ElevenLabsVoice({ agentId, onConversationStart }: Props) {
         )}
       </div>
 
-      <div className="hidden" aria-hidden>
-        <elevenlabs-convai
-          id={WIDGET_ID}
-          agent-id={agentId}
-          variant="compact"
-          action-text="Talk in Bridge"
-          start-call-text="Start"
-          end-call-text="End"
-          listening-text="Listening"
-          speaking-text="Speaking"
-          avatar-orb-color-1="#e8a87c"
-          avatar-orb-color-2="#c76d3e"
-        />
-      </div>
+      <elevenlabs-convai
+        id={WIDGET_ID}
+        className="bridge-voice-widget-host"
+        agent-id={agentId}
+        variant="compact"
+        action-text="Talk in Bridge"
+        start-call-text="Start conversation"
+        end-call-text="End conversation"
+        listening-text="Listening"
+        speaking-text="Speaking"
+        avatar-orb-color-1="#e8a87c"
+        avatar-orb-color-2="#c76d3e"
+      />
     </section>
   );
 }
+
