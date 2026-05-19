@@ -1,0 +1,91 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bridge}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bridge}
+      POSTGRES_DB: ${POSTGRES_DB:-bridge}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bridge"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-bridge}:${POSTGRES_PASSWORD:-bridge}@postgres:5432/${POSTGRES_DB:-bridge}
+      API_JWT_SECRET: ${API_JWT_SECRET:-dev-secret}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+      ELEVENLABS_WEBHOOK_SECRET: ${ELEVENLABS_WEBHOOK_SECRET:-}
+      LIVEKIT_URL: ${LIVEKIT_URL:-}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      MATCHING_LLM_PROVIDER: ${MATCHING_LLM_PROVIDER:-openai}
+      PHASE2_DURATION_DAYS: ${PHASE2_DURATION_DAYS:-7}
+      PHASE2_DURATION_MINUTES: ${PHASE2_DURATION_MINUTES:-30}
+      MATCHING_LEAD_FRACTION: ${MATCHING_LEAD_FRACTION:-0.1}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-dev-secret}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      JWT_SECRET: ${JWT_SECRET:-dev-secret}
+    depends_on:
+      - api
+
+  agent:
+    build:
+      context: .
+      dockerfile: apps/agent/Dockerfile
+    environment:
+      LIVEKIT_URL: ${LIVEKIT_URL:-}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+      API_URL: http://api:8000
+    depends_on:
+      - api
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    command: python -m app.worker
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-bridge}:${POSTGRES_PASSWORD:-bridge}@postgres:5432/${POSTGRES_DB:-bridge}
+      API_JWT_SECRET: ${API_JWT_SECRET:-dev-secret}
+      PHASE2_DURATION_DAYS: ${PHASE2_DURATION_DAYS:-7}
+      PHASE2_DURATION_MINUTES: ${PHASE2_DURATION_MINUTES:-30}
+      MATCHING_LEAD_FRACTION: ${MATCHING_LEAD_FRACTION:-0.1}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      MATCHING_LLM_PROVIDER: ${MATCHING_LLM_PROVIDER:-openai}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      api:
+        condition: service_started
+
+volumes:
+  pgdata:

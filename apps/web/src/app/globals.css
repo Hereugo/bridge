@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bridge-night: #0f1419;
+  --bridge-charcoal: #1a2332;
+  --bridge-amber: #e8a87c;
+  --bridge-cream: #f5f0e8;
+}
+
+body {
+  @apply bg-bridge-night text-bridge-cream antialiased;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+}
+
+@layer components {
+  .btn-primary {
+    @apply rounded-full bg-bridge-amber px-6 py-3 font-medium text-bridge-night transition hover:bg-bridge-amber/90 disabled:opacity-50;
+  }
+  .btn-ghost {
+    @apply rounded-full border border-bridge-muted/40 px-6 py-3 text-bridge-cream transition hover:border-bridge-amber/50;
+  }
+  .card-surface {
+    @apply rounded-2xl border border-white/5 bg-bridge-charcoal/80 p-6 shadow-xl backdrop-blur-sm;
+  }
+}
