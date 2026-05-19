@@ -87,26 +87,42 @@ export default function KnowPage() {
     }
   }
 
-  if (!journey) return <p className="text-bridge-muted">Loading…</p>;
+  if (!journey) {
+    return (
+      <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3">
+        <div className="h-9 w-9 animate-pulse rounded-full bg-bridge-amber/25" />
+        <p className="text-sm text-bridge-muted">Loading your space…</p>
+      </div>
+    );
+  }
 
   const endsAt = journey.phase_ends_at ? new Date(journey.phase_ends_at) : null;
 
   return (
-    <div className="space-y-6">
-      <header>
-        <p className="text-sm uppercase tracking-widest text-bridge-amber">Know</p>
-        <h1 className="font-display mt-2 text-3xl">Your companion</h1>
+    <div className="space-y-8 pb-8">
+      <header className="text-center md:text-left">
+        <p className="text-xs font-medium uppercase tracking-[0.2em] text-bridge-amber/90">Know</p>
+        <h1 className="font-display mt-2 text-3xl text-bridge-cream md:text-4xl">Your week together</h1>
+        <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-bridge-muted md:mx-0">
+          Take your time — this is a low-key hang, not an interview. Voice and typing both live
+          here in Bridge.
+        </p>
         {endsAt && (
-          <p className="mt-2 text-sm text-bridge-muted">
-            Phase ends {endsAt.toLocaleString()}
+          <p className="mt-3 text-xs text-bridge-muted/90">
+            This chapter wraps{" "}
+            <span className="text-bridge-cream/80">
+              {endsAt.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+            </span>
           </p>
         )}
       </header>
 
       {reveal?.match_ready && (
-        <div className="card-surface border-bridge-amber/30">
-          <p className="text-bridge-amber text-sm uppercase tracking-wide">Your companion says</p>
-          <p className="mt-3 text-lg leading-relaxed">
+        <div className="relative overflow-hidden rounded-2xl border border-bridge-amber/35 bg-gradient-to-br from-bridge-amber/10 to-transparent p-6">
+          <p className="text-xs font-semibold uppercase tracking-wider text-bridge-amber">
+            Something good
+          </p>
+          <p className="mt-3 text-lg leading-relaxed text-bridge-cream">
             I&apos;ve been thinking — I know someone you&apos;d really click with
             {reveal.partner_first_name ? ` (${reveal.partner_first_name})` : ""}.
             {reveal.scheduled_call_at && (
@@ -123,11 +139,11 @@ export default function KnowPage() {
             )}
           </p>
           {reveal.connection_card && (
-            <p className="mt-3 text-sm text-bridge-muted italic">{reveal.connection_card}</p>
+            <p className="mt-3 text-sm italic leading-relaxed text-bridge-muted">{reveal.connection_card}</p>
           )}
           <button
             type="button"
-            className="btn-primary mt-4 w-full"
+            className="btn-primary mt-5 w-full md:w-auto md:min-w-[200px]"
             onClick={async () => {
               await apiFetch("/journey/advance-wingman", {
                 method: "POST",
@@ -148,21 +164,22 @@ export default function KnowPage() {
         />
       )}
 
-      <div className="card-surface">
-        <p className="text-sm text-bridge-muted">
-          Text fallback — type if voice isn&apos;t available.
-        </p>
+      <div className="rounded-2xl border border-white/[0.06] bg-bridge-charcoal/40 p-5">
+        <div className="flex items-baseline justify-between gap-2">
+          <p className="text-sm font-medium text-bridge-cream">Message</p>
+          <p className="text-xs text-bridge-muted">Optional — if you&apos;d rather type</p>
+        </div>
         <textarea
-          className="mt-2 w-full rounded-lg border border-white/10 bg-bridge-night p-3 text-sm"
-          rows={3}
-          placeholder="Say something to your companion…"
+          className="mt-3 w-full resize-none rounded-xl border border-white/10 bg-bridge-night/80 px-4 py-3 text-sm text-bridge-cream outline-none ring-bridge-amber/30 transition placeholder:text-bridge-muted/50 focus:border-bridge-amber/40 focus:ring-2"
+          rows={4}
+          placeholder="Type here anytime — same thread as your voice chat…"
         />
       </div>
 
       {showDevTools && (
         <button
           type="button"
-          className="btn-ghost w-full text-sm"
+          className="btn-ghost w-full text-sm opacity-80"
           disabled={submitting}
           onClick={endWeekDemo}
         >
