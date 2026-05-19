@@ -1,5 +1,4 @@
-livekit-agents==0.12.7
-livekit-plugins-elevenlabs==0.7.4
-livekit-plugins-silero==0.7.4
+livekit-agents[silero]~=1.5.10
+livekit-plugins-elevenlabs~=1.0
 httpx==0.28.1
 python-dotenv==1.0.1

@@ -12,8 +12,7 @@ import re
 import time
 
 import httpx
-from livekit.agents import AgentSession, JobContext, WorkerOptions, cli
-from livekit.agents.voice import Agent as VoiceAgent
+from livekit.agents import Agent, AgentSession, JobContext, WorkerOptions, cli
 from livekit.plugins import elevenlabs, silero
 
 logger = logging.getLogger("bridge.wingman")
@@ -51,7 +50,7 @@ def human_participant_count(room) -> int:
     )
 
 
-class WingmanAgent(VoiceAgent):
+class WingmanAgent(Agent):
     def __init__(self, card_text: str, shared_topics: list):
         topics = ", ".join(shared_topics) if shared_topics else "what brought you both here"
         super().__init__(
@@ -89,7 +88,7 @@ async def entrypoint(ctx: JobContext):
         logger.warning("ELEVENLABS_API_KEY not set — wingman will not speak on stall")
 
     session = AgentSession(vad=silero.VAD.load(), tts=tts)
-    await session.start(agent=agent, room=room)
+    await session.start(room=room, agent=agent)
 
     local_identity = room.local_participant.identity if room.local_participant else ""
     last_activity = time.monotonic()
