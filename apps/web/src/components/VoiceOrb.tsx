@@ -4,192 +4,105 @@ interface VoiceOrbProps {
   mode: VoiceOrbMode;
 }
 
+const flowClass = {
+  fast: ["animate-orb-flow-1-fast", "animate-orb-flow-2-fast", "animate-orb-flow-3-fast"],
+  normal: ["animate-orb-flow-1", "animate-orb-flow-2", "animate-orb-flow-3"],
+  slow: [
+    "animate-orb-flow-1 [animation-duration:16s]",
+    "animate-orb-flow-2 [animation-duration:20s]",
+    "animate-orb-flow-3 [animation-duration:13s]",
+  ],
+} as const;
+
 /**
- * Glassy core with overlapping wave layers when live; ripples + slow rotation.
+ * Siri-style glass orb: dark shell, flowing orange inner waves, pulsing core when speaking.
  */
 export function VoiceOrb({ mode }: VoiceOrbProps) {
   const isSpeaking = mode === "speaking";
   const isListening = mode === "listening";
-  const isAmbient = mode === "ambient";
   const isConnecting = mode === "connecting";
-  const isLive = isAmbient || isListening || isSpeaking;
+  const isAmbient = mode === "ambient";
+  const isLive = isAmbient || isListening || isSpeaking || isConnecting;
 
-  const rippleClass = isSpeaking
-    ? "animate-orb-ripple-fast border-white/20"
-    : isListening
-      ? "animate-orb-ripple border-white/15"
-      : isAmbient || isConnecting
-        ? "animate-orb-ripple-slow border-white/10"
-        : "opacity-0";
+  const speed = isSpeaking ? "fast" : isLive ? "normal" : "slow";
+  const [flow1, flow2, flow3] = flowClass[speed];
+  const waveOpacity = isSpeaking ? 1 : isListening ? 0.88 : isLive ? 0.72 : 0.45;
 
   return (
-    <div
-      className={`relative mx-auto flex h-44 w-44 items-center justify-center transition-transform duration-500 ease-out md:h-52 md:w-52 ${
-        isSpeaking ? "scale-[1.02]" : "scale-100"
-      }`}
-    >
-      {/* Glass-tinted ripples */}
-      <span
-        className={`absolute inset-0 rounded-full border bg-bridge-amber/[0.04] backdrop-blur-[2px] ${rippleClass}`}
-        aria-hidden
-      />
-      <span
-        className={`absolute inset-2 rounded-full border bg-bridge-amber/[0.03] backdrop-blur-[2px] ${
+    <div className="relative mx-auto flex h-44 w-44 items-center justify-center md:h-52 md:w-52">
+      {/* Outer glow */}
+      <div
+        className={`pointer-events-none absolute inset-4 rounded-full transition-opacity duration-700 ${
           isSpeaking
-            ? "animate-orb-ripple-fast border-white/15 [animation-delay:180ms]"
+            ? "animate-orb-halo bg-orange-400/25 blur-3xl"
             : isLive
-              ? "animate-orb-ripple-slow border-white/10 [animation-delay:400ms]"
-              : "opacity-0"
-        }`}
-        aria-hidden
-      />
-      <span
-        className={`absolute inset-5 rounded-full border bg-bridge-amber/[0.02] backdrop-blur-[2px] ${
-          isSpeaking
-            ? "animate-orb-ripple border-white/10 [animation-delay:320ms]"
-            : isLive
-              ? "animate-orb-ripple border-white/[0.07] [animation-delay:800ms]"
-              : "opacity-0"
+              ? "bg-orange-500/15 blur-3xl opacity-80"
+              : "bg-orange-600/10 blur-2xl opacity-40"
         }`}
         aria-hidden
       />
 
-      {/* Slow ambient halo */}
+      {/* Glass sphere */}
       <div
-        className={`pointer-events-none absolute inset-6 rounded-full bg-gradient-to-br from-bridge-amber/25 via-bridge-amber/5 to-transparent blur-xl transition-opacity duration-700 ${
-          isLive ? "animate-orb-drift opacity-100" : "opacity-30"
-        }`}
-        aria-hidden
-      />
-
-      {/* Core glass orb */}
-      <div
-        className={`relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-full border border-white/25 md:h-32 md:w-32 ${
-          isSpeaking
-            ? "animate-orb-speak shadow-[0_0_48px_rgba(232,168,124,0.5),inset_0_1px_0_rgba(255,255,255,0.45)]"
-            : isListening
-              ? "animate-orb-core shadow-[0_0_32px_rgba(232,168,124,0.35),inset_0_1px_0_rgba(255,255,255,0.35)]"
-              : isLive
-                ? "shadow-[0_0_24px_rgba(232,168,124,0.22),inset_0_1px_0_rgba(255,255,255,0.3)]"
-                : "shadow-[inset_0_1px_0_rgba(255,255,255,0.2),0_4px_24px_rgba(0,0,0,0.25)]"
-        }`}
+        className={`relative h-[7.5rem] w-[7.5rem] overflow-hidden rounded-full md:h-[8.5rem] md:w-[8.5rem] ${
+          isSpeaking ? "animate-orb-speak" : ""
+        } shadow-[0_8px_40px_rgba(255,120,40,0.25),inset_0_1px_0_rgba(255,255,255,0.12)]`}
       >
-        {/* Frosted base */}
-        <div
-          className={`absolute inset-0 rounded-full bg-gradient-to-br from-white/25 via-bridge-amber/35 to-amber-800/50 backdrop-blur-md transition-opacity duration-500 ${
-            isSpeaking ? "opacity-95" : isListening ? "opacity-88" : "opacity-75"
-          }`}
-        />
+        <div className="absolute inset-0 rounded-full bg-gradient-to-br from-[#1a1520] via-bridge-night to-[#080a0e]" />
 
-        {/* Overlapping wave blobs (speaking / listening) */}
-        {(isSpeaking || isListening) && (
-          <>
-            <span
-              className={`absolute -inset-[12%] bg-gradient-to-tr from-bridge-amber/55 via-bridge-cream/20 to-transparent blur-[6px] ${
-                isSpeaking ? "animate-orb-wobble-fast opacity-70" : "animate-orb-wobble opacity-50"
-              }`}
-              aria-hidden
-            />
-            <span
-              className={`absolute -inset-[8%] bg-gradient-to-bl from-bridge-cream/30 via-bridge-amber/40 to-transparent blur-[4px] ${
-                isSpeaking
-                  ? "animate-orb-wobble opacity-60 [animation-delay:-1.2s]"
-                  : "animate-orb-wobble-slow opacity-40 [animation-delay:-2s]"
-              }`}
-              aria-hidden
-            />
-            {isSpeaking && (
-              <span
-                className="absolute -inset-[6%] animate-orb-wobble-slow bg-gradient-to-tl from-white/25 via-bridge-amber/35 to-transparent opacity-55 blur-[3px] [animation-delay:-3.5s]"
-                aria-hidden
-              />
-            )}
-          </>
-        )}
-
-        {/* Inner depth + glass tint */}
+        {/* Flowing orange waves */}
         <div
-          className={`absolute inset-[3px] rounded-full bg-gradient-to-tl from-bridge-night/30 via-transparent to-bridge-cream/25 transition-opacity duration-500 ${
-            isLive ? "opacity-100" : "opacity-70"
-          }`}
-        />
-        <div className="absolute inset-0 rounded-full bg-gradient-to-b from-transparent via-transparent to-bridge-night/20" />
-
-        {/* Rotating specular sweep */}
-        <div
-          className={`absolute inset-0 overflow-hidden rounded-full ${isLive ? "animate-orb-glass-shine" : ""}`}
+          className="absolute inset-0 overflow-hidden rounded-full transition-opacity duration-500"
+          style={{ opacity: waveOpacity }}
           aria-hidden
         >
-          <div
-            className={`absolute -left-1/4 -top-1/4 h-[70%] w-[85%] rounded-full bg-gradient-to-br from-white/55 via-white/15 to-transparent blur-[2px] transition-opacity duration-500 ${
-              isSpeaking ? "opacity-90" : isLive ? "opacity-65" : "opacity-40"
-            }`}
-          />
+          <div className="absolute inset-0 scale-110 blur-[18px] mix-blend-screen">
+            <div className="absolute left-1/2 top-1/2 h-[78%] w-[82%] -translate-x-1/2 -translate-y-1/2">
+              <span
+                className={`absolute inset-0 bg-gradient-to-br from-[#ff8c42] via-[#ff6b35] to-transparent opacity-90 ${flow1}`}
+              />
+            </div>
+            <div className="absolute left-1/2 top-1/2 h-[72%] w-[76%] -translate-x-1/2 -translate-y-1/2">
+              <span
+                className={`absolute inset-0 bg-gradient-to-tr from-[#ffb347] via-bridge-amber to-transparent opacity-85 ${flow2} [animation-delay:-1.5s]`}
+              />
+            </div>
+            <div className="absolute left-1/2 top-1/2 h-[68%] w-[70%] -translate-x-1/2 -translate-y-1/2">
+              <span
+                className={`absolute inset-0 bg-gradient-to-bl from-[#ff9f6b] via-[#e85d04] to-transparent opacity-80 ${flow3} [animation-delay:-0.8s]`}
+              />
+            </div>
+          </div>
+          <div className="pointer-events-none absolute inset-0 rounded-full backdrop-blur-[10px]" />
         </div>
 
-        {/* Bottom caustic */}
+        {/* Bright center core */}
         <div
-          className="absolute inset-x-3 bottom-2 h-1/3 rounded-full bg-gradient-to-t from-bridge-amber/30 to-transparent blur-md"
+          className={`absolute left-1/2 top-1/2 z-[1] rounded-full bg-[radial-gradient(circle,rgba(255,255,255,1)_0%,rgba(255,244,230,0.9)_40%,transparent_72%)] ${
+            isSpeaking
+              ? "animate-orb-core-talk h-10 w-10 blur-[10px] md:h-11 md:w-11"
+              : isLive
+                ? "animate-orb-core-breathe h-7 w-7 blur-[8px] md:h-8 md:w-8"
+                : "h-6 w-6 -translate-x-1/2 -translate-y-1/2 blur-[6px] opacity-60"
+          }`}
+          aria-hidden
+        />
+        <div
+          className={`absolute left-1/2 top-1/2 z-[2] rounded-full bg-white/90 blur-[2px] ${
+            isSpeaking
+              ? "animate-orb-core-talk h-3 w-3"
+              : isLive
+                ? "animate-orb-core-breathe h-2 w-2"
+                : "h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 opacity-70"
+          }`}
           aria-hidden
         />
 
-        {/* Inner shimmer */}
-        <div
-          className={`absolute inset-4 rounded-full bg-bridge-cream/15 blur-sm transition-opacity duration-500 ${
-            isSpeaking ? "animate-orb-core opacity-100" : isLive ? "opacity-70" : "opacity-0"
-          }`}
-        />
-
-        {/* Rim highlight */}
-        <div
-          className={`pointer-events-none absolute inset-0 rounded-full ring-1 ring-inset ring-white/30 transition-opacity duration-500 ${
-            isSpeaking ? "opacity-95" : "opacity-70"
-          }`}
-        />
-
-        {/* Rotating dashed rings */}
-        <svg
-          className="relative z-[1] h-full w-full text-white/20"
-          viewBox="0 0 100 100"
-          aria-hidden
-        >
-          <circle
-            cx="50"
-            cy="50"
-            r="46"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeDasharray="8 14"
-            className={isLive ? "origin-center animate-[spin_20s_linear_infinite]" : ""}
-          />
-          <circle
-            cx="50"
-            cy="50"
-            r="40"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1"
-            strokeDasharray="4 12"
-            className={
-              isLive
-                ? "origin-center animate-[spin_14s_linear_infinite_reverse] text-bridge-cream/15"
-                : ""
-            }
-          />
-          {isSpeaking && (
-            <circle
-              cx="50"
-              cy="50"
-              r="34"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="0.75"
-              strokeDasharray="2 10"
-              className="origin-center animate-[spin_8s_linear_infinite] text-white/25"
-            />
-          )}
-        </svg>
+        {/* Glass shell */}
+        <div className="pointer-events-none absolute inset-0 rounded-full bg-gradient-to-br from-white/[0.14] via-transparent to-black/50" />
+        <div className="pointer-events-none absolute inset-0 rounded-full ring-1 ring-inset ring-white/20" />
+        <div className="pointer-events-none absolute left-[14%] top-[10%] h-[28%] w-[38%] rounded-full bg-gradient-to-br from-white/35 to-transparent blur-md" />
+        <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-t from-black/35 via-transparent to-transparent" />
       </div>
     </div>
   );
