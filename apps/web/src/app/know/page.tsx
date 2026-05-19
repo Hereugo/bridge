@@ -7,9 +7,18 @@ import { apiFetch, Journey } from "@/lib/api";
 import { ElevenLabsVoice } from "@/components/ElevenLabsVoice";
 import type { StructuredSummary } from "@bridge/shared";
 
-const showDevTools =
-  process.env.NEXT_PUBLIC_SHOW_DEV_TOOLS === "true" ||
-  process.env.NODE_ENV !== "production";
+/** PoC: stand-in until ElevenLabs produces a real structured summary. */
+const DEMO_SUMMARY: StructuredSummary = {
+  interests: ["live music", "coffee", "urban walks"],
+  communication_style: "warm and curious",
+  humour: "dry, gentle",
+  energy_level: "evening person",
+  availability: [
+    { day: "friday", start: "19:00", end: "21:00" },
+    { day: "saturday", start: "14:00", end: "17:00" },
+  ],
+  notes: "PoC demo summary",
+};
 
 export default function KnowPage() {
   const { data: session, status } = useSession();
@@ -55,6 +64,12 @@ export default function KnowPage() {
     return () => window.clearInterval(id);
   }, [journey?.phase, reveal?.match_ready, load]);
 
+  useEffect(() => {
+    if (journey?.phase === "MATCHED" && journey.match_id) {
+      router.replace("/matched");
+    }
+  }, [journey?.phase, journey?.match_id, router]);
+
   async function registerConversation(conversationId: string) {
     if (!session?.user?.id) return;
     await fetch(
@@ -70,36 +85,25 @@ export default function KnowPage() {
     );
   }
 
-  async function endWeekDemo() {
+  async function requestMatching() {
     if (!session?.apiToken || submitting) return;
     setSubmitting(true);
-    const summary: StructuredSummary = {
-      interests: ["live music", "coffee", "urban walks"],
-      communication_style: "warm and curious",
-      humour: "dry, gentle",
-      energy_level: "evening person",
-      availability: [
-        { day: "friday", start: "19:00", end: "21:00" },
-        { day: "saturday", start: "14:00", end: "17:00" },
-      ],
-      notes: "PoC demo summary",
-    };
+    setMatchMessage(null);
     try {
       const updated = await apiFetch<Journey>("/journey/summary", {
         method: "POST",
         token: session.apiToken,
-        body: JSON.stringify({ structured_summary: summary }),
+        body: JSON.stringify({ structured_summary: DEMO_SUMMARY }),
       });
       setJourney(updated);
       if (updated.phase === "MATCHED" && updated.match_id) {
-        setMatchMessage(null);
-        await load();
-      } else {
-        setMatchMessage(
-          "You’re in the queue — open a second browser (incognito) as another user and tap the same button there."
-        );
-        await load();
+        router.push("/matched");
+        return;
       }
+      setMatchMessage(
+        "You’re in the queue. Have a second person sign in (incognito works) and tap the same button — you’ll be paired with the next ready person."
+      );
+      await load();
     } finally {
       setSubmitting(false);
     }
@@ -115,6 +119,8 @@ export default function KnowPage() {
   }
 
   const endsAt = journey.phase_ends_at ? new Date(journey.phase_ends_at) : null;
+  const canRequestMatch =
+    (journey.phase === "KNOW" || journey.phase === "MATCHING") && !reveal?.match_ready;
 
   return (
     <div className="space-y-8 pb-8">
@@ -135,14 +141,31 @@ export default function KnowPage() {
         )}
       </header>
 
-      {journey.phase === "MATCHING" && !reveal?.match_ready && (
-        <div className="rounded-2xl border border-white/[0.08] bg-bridge-charcoal/50 p-5 text-sm text-bridge-muted">
-          <p className="font-medium text-bridge-cream">Waiting for your match</p>
-          <p className="mt-2 leading-relaxed">
-            {matchMessage ||
-              "Another person needs to finish their Know week before Bridge can introduce you two."}
+      {canRequestMatch && (
+        <section className="rounded-2xl border border-bridge-amber/30 bg-bridge-charcoal/60 p-5 md:p-6">
+          <p className="text-sm font-medium text-bridge-cream">Ready for an introduction?</p>
+          <p className="mt-2 text-sm leading-relaxed text-bridge-muted">
+            When you&apos;re done with this week, Bridge will look for someone compatible. For demos,
+            the next person who taps this button gets paired with you.
           </p>
-        </div>
+          {journey.phase === "MATCHING" && matchMessage && (
+            <p className="mt-3 rounded-xl border border-white/[0.08] bg-bridge-night/50 px-4 py-3 text-sm leading-relaxed text-bridge-muted">
+              {matchMessage}
+            </p>
+          )}
+          <button
+            type="button"
+            className="btn-primary mt-4 w-full md:w-auto md:min-w-[240px]"
+            disabled={submitting}
+            onClick={requestMatching}
+          >
+            {submitting
+              ? "Finding your match…"
+              : journey.phase === "MATCHING"
+                ? "Try matching again"
+                : "I'm ready to be matched"}
+          </button>
+        </section>
       )}
 
       {reveal?.match_ready && (
@@ -199,23 +222,6 @@ export default function KnowPage() {
         />
       </div>
 
-      {showDevTools && (
-        <div className="space-y-2">
-          <button
-            type="button"
-            className="btn-ghost w-full text-sm opacity-80"
-            disabled={submitting}
-            onClick={endWeekDemo}
-          >
-            {submitting ? "Matching…" : "[Dev] End week & run matching"}
-          </button>
-          <p className="text-center text-xs text-bridge-muted/80">
-            Skips the Know timer. Set{" "}
-            <code className="text-bridge-cream/70">PHASE2_DURATION_MINUTES=5</code> in{" "}
-            <code className="text-bridge-cream/70">.env</code> for a short week without this button.
-          </p>
-        </div>
-      )}
     </div>
   );
 }
