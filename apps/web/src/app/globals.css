@@ -24,6 +24,13 @@ body {
   .card-surface {
     @apply rounded-2xl border border-white/5 bg-bridge-charcoal/80 p-6 shadow-xl backdrop-blur-sm;
   }
+  .landing-full-bleed {
+    width: 100vw;
+    position: relative;
+    left: 50%;
+    margin-left: -50vw;
+    margin-right: -50vw;
+  }
 }
 
 /* ElevenLabs embed: keep in DOM for shadow root, hide default floating UI */
