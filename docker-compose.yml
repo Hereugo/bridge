@@ -61,7 +61,6 @@ services:
       NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-dev-secret}
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
-      API_PROXY_TARGET: ${API_PROXY_TARGET:-}
       JWT_SECRET: ${JWT_SECRET:-dev-secret}
     depends_on:
       - api

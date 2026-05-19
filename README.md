@@ -48,6 +48,4 @@ Replace ElevenLabs `agent_*_placeholder` IDs in the `personas` table after creat
 
 ## Dokploy
 
-Deploy `web`, `api`, and `postgres` (plus `agent` / `worker` if needed). See **[docs/DOKPLOY.md](docs/DOKPLOY.md)** for `/api` path proxying, env vars, and build paths.
-
-Optional Compose gateway: `docker compose -f docker-compose.yml -f docker-compose.proxy.yml up -d`.
+Deploy the root `docker-compose.yml` stack: `web`, `api`, `postgres`, `agent`, `worker`.
