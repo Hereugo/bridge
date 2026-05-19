@@ -102,13 +102,7 @@ function InCallUI({
   const orbMode = useOrbMode();
 
   const remoteHumans = participants.filter((p) => !p.isLocal && !isWingmanParticipant(p));
-  const wingmanHere = participants.some((p) => isWingmanParticipant(p));
   const partnerHere = remoteHumans.length > 0;
-  const companionStatus = wingmanHere
-    ? "Listening quietly"
-    : connection === ConnectionState.Connected
-      ? "Joining…"
-      : "Waiting for room…";
 
   const statusLabel = useMemo(() => {
     if (connection === ConnectionState.Reconnecting) return "Reconnecting…";
@@ -146,7 +140,7 @@ function InCallUI({
             status={partnerHere ? (remoteHumans[0]?.isSpeaking ? "Speaking" : "Here") : "Not yet"}
             muted={!partnerHere}
           />
-          <ParticipantRow label="Companion" status={companionStatus} muted={!wingmanHere} />
+          <ParticipantRow label="Companion" status="Listening quietly" />
         </ul>
 
         <div className="bridge-call-controls mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-center">
