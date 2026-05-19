@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { DM_Sans, Fraunces } from "next/font/google";
-import { RegisterSW } from "@/components/RegisterSW";
 import { Providers } from "./providers";
 import "./globals.css";
 
@@ -37,7 +36,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${fraunces.variable} ${dmSans.variable}`}>
       <body className="font-sans min-h-screen">
         <Providers>
-          <RegisterSW />
           <main className="mx-auto min-h-screen max-w-lg px-4 py-8 md:max-w-xl lg:max-w-2xl">
             {children}
           </main>

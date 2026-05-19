@@ -53,7 +53,6 @@ export function ElevenLabsVoice({ agentId, onConversationStart }: Props) {
           </span>
         )}
       </p>
-      {/* @ts-expect-error custom element */}
       <elevenlabs-convai agent-id={agentId} />
     </div>
   );

@@ -55,6 +55,24 @@ def _journey_response(db: Session, user: User, journey: UserJourney) -> JourneyO
     )
 
 
+@router.post("/complete-onboarding", response_model=JourneyOut)
+def complete_onboarding(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    from datetime import datetime, timezone
+
+    journey = ensure_journey(db, user)
+    if journey.phase == Phase.ONBOARDING:
+        journey.phase = Phase.SWIPE
+        user.current_phase = Phase.SWIPE
+        if not user.consent_at:
+            user.consent_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(journey)
+    return _journey_response(db, user, journey)
+
+
 @router.get("/me", response_model=JourneyOut)
 def get_my_journey(
     user: User = Depends(get_current_user),
@@ -81,7 +99,6 @@ def select_persona(
 
     journey = ensure_journey(db, user)
     journey.persona_id = body.persona_id
-    user.current_phase = Phase.SWIPE
     db.commit()
 
     journey = start_know_phase(db, user, journey)

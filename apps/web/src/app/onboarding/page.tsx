@@ -2,15 +2,31 @@
 
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { apiFetch } from "@/lib/api";
 
 export default function OnboardingPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (status === "unauthenticated") router.replace("/login");
   }, [status, router]);
+
+  async function handleContinue() {
+    if (!session?.apiToken) return;
+    setLoading(true);
+    try {
+      await apiFetch("/journey/complete-onboarding", {
+        method: "POST",
+        token: session.apiToken,
+      });
+      router.push("/swipe");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   if (status !== "authenticated") {
     return <p className="text-bridge-muted">Loading…</p>;
@@ -39,18 +55,23 @@ export default function OnboardingPage() {
           </li>
           <li className="flex gap-2">
             <span className="text-bridge-amber">◆</span>
-            Raw voice data is removed after each phase. Only what&apos;s needed for your match moves
+            Raw voice data is removed after each phase. Only what’s needed for your match moves
             forward.
           </li>
           <li className="flex gap-2">
             <span className="text-bridge-amber">◆</span>
-            The AI steps aside once you&apos;ve met — this is about human connection.
+            The AI steps aside once you’ve met — this is about human connection.
           </li>
         </ul>
       </div>
 
-      <button type="button" className="btn-primary w-full" onClick={() => router.push("/swipe")}>
-        I understand — let&apos;s go
+      <button
+        type="button"
+        className="btn-primary w-full"
+        disabled={loading}
+        onClick={handleContinue}
+      >
+        {loading ? "Saving…" : "I understand — let's go"}
       </button>
 
       <p className="text-center text-xs text-bridge-muted">

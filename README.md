@@ -6,7 +6,7 @@ AI-powered social matchmaking PoC — Swipe → Know → Match → Wingman.
 
 ## Stack
 
-- **Web**: Next.js 15 PWA (`apps/web`) — Warm Night Out UI
+- **Web**: Next.js 15 (`apps/web`) — Warm Night Out UI, web app manifest
 - **API**: FastAPI + Swagger (`apps/api`) — http://localhost:8000/docs
 - **Agent**: LiveKit wingman worker (`apps/agent`)
 - **DB**: PostgreSQL 16
@@ -31,14 +31,20 @@ Open http://localhost:3000 — magic link prints to API console.
 
 ## Hackathon demo (two users)
 
-1. Sign in as `user-a@test.com` and `user-b@test.com` (two browsers).
-2. Each completes Swipe → Know.
-3. Click **[Dev] End week & run matching** on both (order matters: second user triggers pair).
-4. View match reveal → Join introduction call (requires LiveKit env vars).
+See [docs/DEMO.md](docs/DEMO.md) for the full walkthrough.
+
+1. Sign in as `alice@demo.test` and `bob@demo.test` (two browsers / incognito).
+2. Complete onboarding → Swipe → Know.
+3. Click **[Dev] End week & run matching** on both (second user triggers the pair).
+4. Match reveal → introduction → call (or skip call if LiveKit is not configured).
+
+See **[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** for ChunkLoadError and dev cache issues.
 
 ## Environment
 
-See `.env.example`. Replace ElevenLabs `agent_*_placeholder` IDs in seeded personas after creating agents in the ElevenLabs dashboard.
+See `.env.example`. For voice and calls, see **[docs/SETUP_VOICE.md](docs/SETUP_VOICE.md)** (ElevenLabs + LiveKit step-by-step).
+
+Replace ElevenLabs `agent_*_placeholder` IDs in the `personas` table after creating agents in the ElevenLabs dashboard.
 
 ## Dokploy
 

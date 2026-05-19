@@ -16,9 +16,9 @@ def ensure_journey(db: Session, user: User) -> UserJourney:
     journey = db.query(UserJourney).filter(UserJourney.user_id == user.id).first()
     if journey:
         return journey
-    journey = UserJourney(user_id=user.id, phase=Phase.SWIPE)
+    journey = UserJourney(user_id=user.id, phase=Phase.ONBOARDING)
     db.add(journey)
-    user.current_phase = Phase.SWIPE
+    user.current_phase = Phase.ONBOARDING
     db.commit()
     db.refresh(journey)
     return journey

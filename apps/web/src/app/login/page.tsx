@@ -46,8 +46,8 @@ function LoginForm() {
       });
       setSent(true);
       if (res.dev_link) setDevLink(res.dev_link);
-    } catch {
-      setError("Could not send link");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not send link");
     }
   }
 

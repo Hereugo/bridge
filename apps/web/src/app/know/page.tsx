@@ -7,6 +7,10 @@ import { apiFetch, Journey } from "@/lib/api";
 import { ElevenLabsVoice } from "@/components/ElevenLabsVoice";
 import type { StructuredSummary } from "@bridge/shared";
 
+const showDevTools =
+  process.env.NEXT_PUBLIC_SHOW_DEV_TOOLS === "true" ||
+  process.env.NODE_ENV !== "production";
+
 export default function KnowPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -155,7 +159,7 @@ export default function KnowPage() {
         />
       </div>
 
-      {process.env.NODE_ENV !== "production" && (
+      {showDevTools && (
         <button
           type="button"
           className="btn-ghost w-full text-sm"

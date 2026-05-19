@@ -4,7 +4,7 @@ Stop and commit after each phase. Suggested commit messages are below.
 
 ## Phase 1 — Scaffold (commit first)
 
-**Includes:** monorepo layout, `docker-compose.yml`, `.env.example`, `packages/shared`, FastAPI app shell + `/health` + Swagger, Next.js PWA shell (Warm Night Out theme, manifest, service worker), LiveKit agent stub, README.
+**Includes:** monorepo layout, `docker-compose.yml`, `.env.example`, `packages/shared`, FastAPI app shell + `/health` + Swagger, Next.js shell (Warm Night Out theme, web manifest), LiveKit agent stub, README.
 
 **Verify:**
 ```bash
