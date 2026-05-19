@@ -2,13 +2,24 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-_REPO_ROOT_ENV = Path(__file__).resolve().parents[3] / ".env"
-_API_DIR_ENV = Path(__file__).resolve().parents[1] / ".env"
+
+def _env_files() -> tuple[str, ...]:
+    """Optional .env paths for local dev. Production uses injected env vars (Docker/Dokploy)."""
+    here = Path(__file__).resolve()
+    paths: list[str] = []
+    # Monorepo: apps/api/app/config.py -> repo root at parents[3]
+    if len(here.parents) > 3:
+        paths.append(str(here.parents[3] / ".env"))
+    # API package dir: apps/api/.env locally, /app/.env in Docker (WORKDIR /app)
+    if len(here.parents) > 1:
+        paths.append(str(here.parents[1] / ".env"))
+    paths.append(".env")
+    return tuple(paths)
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=(str(_API_DIR_ENV), str(_REPO_ROOT_ENV), ".env"),
+        env_file=_env_files(),
         extra="ignore",
     )
 
