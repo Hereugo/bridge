@@ -39,6 +39,14 @@ const config: Config = {
           "33%": { borderRadius: "48% 52% 50% 50% / 50% 50% 52% 48%" },
           "66%": { borderRadius: "52% 48% 48% 52% / 48% 52% 50% 50%" },
         },
+        orbGlassShine: {
+          "0%": { transform: "rotate(0deg) translateX(2%)" },
+          "100%": { transform: "rotate(360deg) translateX(2%)" },
+        },
+        orbDrift: {
+          "0%, 100%": { transform: "rotate(0deg) scale(1)" },
+          "50%": { transform: "rotate(180deg) scale(1.06)" },
+        },
       },
       animation: {
         "orb-ripple": "orbRippleOut 2.4s ease-out infinite",
@@ -47,6 +55,10 @@ const config: Config = {
         "orb-core": "orbCoreGlow 2.5s ease-in-out infinite",
         "orb-speak": "orbSpeakPulse 0.75s ease-in-out infinite",
         "orb-wobble": "orbWaveDistort 6s ease-in-out infinite",
+        "orb-wobble-slow": "orbWaveDistort 9s ease-in-out infinite",
+        "orb-wobble-fast": "orbWaveDistort 3.5s ease-in-out infinite",
+        "orb-glass-shine": "orbGlassShine 14s linear infinite",
+        "orb-drift": "orbDrift 22s ease-in-out infinite",
       },
     },
   },
