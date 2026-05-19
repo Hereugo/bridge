@@ -8,6 +8,7 @@ declare module "react" {
           id?: string;
           className?: string;
           "agent-id"?: string;
+          "signed-url"?: string;
           variant?: string;
           "action-text"?: string;
           "start-call-text"?: string;

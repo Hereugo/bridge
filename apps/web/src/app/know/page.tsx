@@ -154,6 +154,7 @@ export default function KnowPage() {
       {journey.elevenlabs_agent_id && (
         <ElevenLabsVoice
           agentId={journey.elevenlabs_agent_id}
+          apiToken={session?.apiToken}
           onConversationStart={registerConversation}
         />
       )}

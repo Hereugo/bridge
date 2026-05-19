@@ -1,12 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { isLikelyElevenLabsAgentId } from "@/lib/api-proxy";
+import { apiFetch } from "@/lib/api";
 import { VoiceOrb, type VoiceOrbMode } from "@/components/VoiceOrb";
 
 type ConvaiElement = HTMLElement;
 
 interface Props {
   agentId: string;
+  apiToken?: string;
   onConversationStart?: (conversationId: string) => void;
 }
 
@@ -95,14 +98,19 @@ function clickWidgetEnd(el: ConvaiElement): void {
   findEndButton(root)?.click();
 }
 
-export function ElevenLabsVoice({ agentId, onConversationStart }: Props) {
+export function ElevenLabsVoice({ agentId, apiToken, onConversationStart }: Props) {
   const [, pulse] = useReducer((x: number) => x + 1, 0);
   const [scriptReady, setScriptReady] = useState(false);
+  const [signedUrl, setSignedUrl] = useState<string | null>(null);
+  const [voiceSessionLoading, setVoiceSessionLoading] = useState(false);
   const [sessionActive, setSessionActive] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [userSpeaking, setUserSpeaking] = useState(false);
   const [agentGlowUntil, setAgentGlowUntil] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const isValidAgentId = isLikelyElevenLabsAgentId(agentId);
+  const isPlaceholder = !isValidAgentId;
+  const widgetKey = signedUrl ?? agentId;
   const startedRef = useRef(false);
   const connectingRef = useRef(false);
   const rafRef = useRef<number | null>(null);
@@ -121,6 +129,36 @@ export function ElevenLabsVoice({ agentId, onConversationStart }: Props) {
     const id = window.setInterval(() => pulse(), 200);
     return () => window.clearInterval(id);
   }, [pulse]);
+
+  useEffect(() => {
+    if (!apiToken || !isValidAgentId) {
+      setSignedUrl(null);
+      return;
+    }
+    let cancelled = false;
+    setVoiceSessionLoading(true);
+    setError(null);
+    apiFetch<{ signed_url: string }>("/journey/voice-signed-url", { token: apiToken })
+      .then((res) => {
+        if (!cancelled) setSignedUrl(res.signed_url);
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) {
+          setSignedUrl(null);
+          setError(
+            e instanceof Error
+              ? e.message
+              : "Could not start a voice session. Check ELEVENLABS_API_KEY on the API."
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setVoiceSessionLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [apiToken, agentId, isValidAgentId]);
 
   useEffect(() => {
     if (!agentId) return;
@@ -143,7 +181,7 @@ export function ElevenLabsVoice({ agentId, onConversationStart }: Props) {
   }, [agentId]);
 
   useEffect(() => {
-    if (!scriptReady || !agentId) return;
+    if (!scriptReady || !agentId || (apiToken && !signedUrl)) return;
 
     let observer: MutationObserver | null = null;
     let cancelled = false;
@@ -199,7 +237,7 @@ export function ElevenLabsVoice({ agentId, onConversationStart }: Props) {
       cancelAnimationFrame(raf);
       observer?.disconnect();
     };
-  }, [scriptReady, agentId, onConversationStart, bumpAgentGlow]);
+  }, [scriptReady, agentId, apiToken, signedUrl, onConversationStart, bumpAgentGlow]);
 
   useEffect(() => {
     if (!sessionActive) {
@@ -292,7 +330,9 @@ export function ElevenLabsVoice({ agentId, onConversationStart }: Props) {
 
   const statusLabel = (() => {
     if (error) return error;
+    if (voiceSessionLoading) return "Preparing secure voice session…";
     if (!scriptReady) return "Loading voice…";
+    if (apiToken && !signedUrl) return "Voice session unavailable";
     if (connecting) return "Connecting…";
     if (!sessionActive) return "Ready when you are";
     if (Date.now() < agentGlowUntil) return "Companion is speaking…";
@@ -301,12 +341,16 @@ export function ElevenLabsVoice({ agentId, onConversationStart }: Props) {
   })();
 
   async function handleStart() {
-    if (!scriptReady) return;
+    if (!scriptReady || voiceSessionLoading) return;
+    if (apiToken && !signedUrl) {
+      setError("Voice session not ready. Check API logs and ELEVENLABS_API_KEY.");
+      return;
+    }
     setError(null);
     setConnecting(true);
 
     try {
-      for (let i = 0; i < 40; i++) {
+      for (let i = 0; i < 60; i++) {
         const el = getWidget();
         if (el?.shadowRoot && findStartButton(el.shadowRoot)) {
           await clickWidgetStart(el);
@@ -339,8 +383,6 @@ export function ElevenLabsVoice({ agentId, onConversationStart }: Props) {
     setAgentGlowUntil(0);
     setError(null);
   }
-
-  const isPlaceholder = agentId.includes("placeholder");
 
   return (
     <section className="relative overflow-hidden rounded-3xl border border-white/[0.08] bg-gradient-to-b from-bridge-charcoal/95 to-bridge-night/90 shadow-2xl">
@@ -381,7 +423,9 @@ export function ElevenLabsVoice({ agentId, onConversationStart }: Props) {
             <button
               type="button"
               className="btn-primary min-h-[48px] flex-1 px-8 py-3.5 text-base sm:max-w-xs sm:flex-none"
-              disabled={!scriptReady || connecting || isPlaceholder}
+              disabled={
+                !scriptReady || connecting || isPlaceholder || voiceSessionLoading || Boolean(apiToken && !signedUrl)
+              }
               onClick={handleStart}
             >
               {!scriptReady ? "Preparing…" : connecting ? "Starting…" : "Start conversation"}
@@ -398,16 +442,22 @@ export function ElevenLabsVoice({ agentId, onConversationStart }: Props) {
         </div>
 
         {isPlaceholder && (
-          <p className="mt-4 text-center text-xs text-bridge-amber">
-            Set real ElevenLabs agent IDs on personas in the database for live voice.
+          <p className="mt-4 text-center text-xs leading-relaxed text-bridge-amber">
+            Invalid agent ID in database: <code className="text-bridge-cream/90">{agentId}</code>.
+            Copy each Agent ID from ElevenLabs → Conversational AI → Agents (long string like{" "}
+            <code className="text-bridge-cream/90">agent_7101k5zvyjhmfg983brhmhkd98n6</code>
+            ), update <code className="text-bridge-cream/90">personas.elevenlabs_agent_id</code>, then
+            allowlist <code className="text-bridge-cream/90">bridge.dev.libr.live</code> and disable
+            agent authentication in the ElevenLabs dashboard.
           </p>
         )}
       </div>
 
       <elevenlabs-convai
+        key={widgetKey}
         id={WIDGET_ID}
         className="bridge-voice-widget-host"
-        agent-id={agentId}
+        {...(signedUrl ? { "signed-url": signedUrl } : { "agent-id": agentId })}
         variant="compact"
         action-text="Talk in Bridge"
         start-call-text="Start conversation"

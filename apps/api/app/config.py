@@ -1,8 +1,16 @@
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_REPO_ROOT_ENV = Path(__file__).resolve().parents[3] / ".env"
+_API_DIR_ENV = Path(__file__).resolve().parents[1] / ".env"
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=(str(_API_DIR_ENV), str(_REPO_ROOT_ENV), ".env"),
+        extra="ignore",
+    )
 
     database_url: str = "postgresql://bridge:bridge@localhost:5432/bridge"
     api_jwt_secret: str = "dev-secret"

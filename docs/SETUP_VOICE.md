@@ -15,7 +15,23 @@
 3. Configure:
    - **Voice** — pick a distinct voice per persona.
    - **System prompt** — warm companion, never mention loneliness/therapy; collect interests and availability organically.
-4. Copy each agent’s **Agent ID** (often looks like `agent_...` or a UUID).
+4. Copy each agent’s **Agent ID** from the agent page (a long string like `agent_7101k5zvyjhmfg983brhmhkd98n6`).
+   - **Not** a made-up name like `agent_noor` or `agent_noor_placeholder` — those will never connect.
+
+### 2b. Widget access (required for Bridge)
+
+Bridge requests a **signed URL** from the API (`GET /journey/voice-signed-url`) using `ELEVENLABS_API_KEY`, then passes it to the embed widget. This works when agent authentication is enabled.
+
+**API must have** `ELEVENLABS_API_KEY` set (root `.env` for local `uvicorn`, API service on Dokploy).
+
+If you use **allowlist-only** public agents instead (no signed URLs), add hosts in **Security → Allowlist**:
+
+- Production: `bridge.dev.libr.live`
+- Local dev: `localhost:3000` (include the port)
+
+Do not use both signed URLs and allowlist on the same agent (ElevenLabs recommends one method per agent).
+
+Test the agent in the ElevenLabs dashboard embed preview before updating Postgres.
 
 ### 3. Put keys in `.env`
 
@@ -52,7 +68,15 @@ Delete persona rows and update `apps/api/app/seed.py` with real IDs, then restar
 
 1. Log in → onboarding → swipe → pick a persona → **Know**.
 2. The ElevenLabs widget should load (`<elevenlabs-convai agent-id="...">`).
-3. If you still see “Configure ELEVENLABS agent ID”, the DB still has `agent_*_placeholder` values.
+3. If the Know page shows an invalid agent ID or “Could not connect”, the DB still has fake IDs or the allowlist/auth settings are wrong.
+
+**Debug in browser:** DevTools → Network → `GET …/journey/me` → check `elevenlabs_agent_id` matches the dashboard exactly.
+
+**Debug in Postgres:**
+
+```sql
+SELECT display_name, elevenlabs_agent_id FROM personas ORDER BY sort_order;
+```
 
 ### Webhooks (optional)
 

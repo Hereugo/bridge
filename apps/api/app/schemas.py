@@ -20,6 +20,10 @@ class SelectPersonaRequest(BaseModel):
     consent: bool = True
 
 
+class VoiceSignedUrlOut(BaseModel):
+    signed_url: str
+
+
 class JourneyOut(BaseModel):
     phase: str
     persona_id: UUID | None

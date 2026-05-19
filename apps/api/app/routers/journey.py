@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
+from app.config import settings
 from app.database import get_db
 from app.models import ConnectionCard, Match, Persona, Phase, Summary, User, UserJourney
 from app.schemas import (
@@ -11,7 +12,9 @@ from app.schemas import (
     MatchRevealContext,
     SelectPersonaRequest,
     SummarySubmitRequest,
+    VoiceSignedUrlOut,
 )
+from app.services.elevenlabs_voice import fetch_voice_signed_url
 from app.services.matching import run_matching_for_user
 from app.services.phase import ensure_journey, start_know_phase
 
@@ -80,6 +83,29 @@ def get_my_journey(
 ):
     journey = ensure_journey(db, user)
     return _journey_response(db, user, journey)
+
+
+@router.get("/voice-signed-url", response_model=VoiceSignedUrlOut)
+def get_voice_signed_url(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Mint a short-lived ElevenLabs WebSocket URL (required when agent auth is enabled)."""
+    if not settings.elevenlabs_api_key:
+        raise HTTPException(status_code=503, detail="ELEVENLABS_API_KEY is not configured on the API")
+    journey = ensure_journey(db, user)
+    if not journey.persona_id:
+        raise HTTPException(status_code=400, detail="Select a persona before starting voice")
+    persona = db.get(Persona, journey.persona_id)
+    if not persona:
+        raise HTTPException(status_code=404, detail="Persona not found")
+    try:
+        signed_url = fetch_voice_signed_url(persona.elevenlabs_agent_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail="Could not get voice session from ElevenLabs") from exc
+    return VoiceSignedUrlOut(signed_url=signed_url)
 
 
 @router.post("/select-persona", response_model=JourneyOut)
