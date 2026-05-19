@@ -15,6 +15,17 @@ body {
 }
 
 @layer components {
+  /* Voice orb SVG wave groups — orbit around sphere center */
+  .orb-wave-motion {
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+
+  .orb-wave-motion ellipse {
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+
   .btn-primary {
     @apply rounded-full bg-bridge-amber px-6 py-3 font-medium text-bridge-night transition hover:bg-bridge-amber/90 disabled:opacity-50;
   }
