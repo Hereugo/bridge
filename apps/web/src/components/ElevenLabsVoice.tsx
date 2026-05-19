@@ -19,6 +19,16 @@ const START_LABELS = ["start conversation", "start call", "start"];
 const END_LABELS = ["end conversation", "end call", "end"];
 const CONNECT_TIMEOUT_MS = 25_000;
 
+const MIC_CONSTRAINTS: MediaTrackConstraints = {
+  echoCancellation: true,
+  noiseSuppression: true,
+  autoGainControl: true,
+};
+
+async function openMicrophone(): Promise<MediaStream> {
+  return navigator.mediaDevices.getUserMedia({ audio: MIC_CONSTRAINTS });
+}
+
 function getWidget(): ConvaiElement | null {
   return document.getElementById(WIDGET_ID) as ConvaiElement | null;
 }
@@ -108,6 +118,7 @@ export function ElevenLabsVoice({ agentId, apiToken, onConversationStart }: Prop
   const [userSpeaking, setUserSpeaking] = useState(false);
   const [agentGlowUntil, setAgentGlowUntil] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [micReady, setMicReady] = useState(false);
   const isValidAgentId = isLikelyElevenLabsAgentId(agentId);
   const isPlaceholder = !isValidAgentId;
   const widgetKey = signedUrl ?? agentId;
@@ -239,86 +250,112 @@ export function ElevenLabsVoice({ agentId, apiToken, onConversationStart }: Prop
     };
   }, [scriptReady, agentId, apiToken, signedUrl, onConversationStart, bumpAgentGlow]);
 
-  useEffect(() => {
-    if (!sessionActive) {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+  const ensureMicrophone = useCallback(async (): Promise<boolean> => {
+    const live =
+      streamRef.current?.getAudioTracks().some((t) => t.readyState === "live") ?? false;
+    if (live) {
+      setMicReady(true);
+      return true;
+    }
+
+    try {
       streamRef.current?.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-      void audioCtxRef.current?.close().catch(() => {});
-      audioCtxRef.current = null;
-      setUserSpeaking(false);
-      return;
-    }
-
-    let cancelled = false;
-    const voicedRef = { current: false };
-    let consecutiveLow = 0;
-
-    async function run() {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        if (cancelled) {
-          stream.getTracks().forEach((t) => t.stop());
-          return;
-        }
-        streamRef.current = stream;
-        const ctx = new AudioContext();
-        audioCtxRef.current = ctx;
-        const source = ctx.createMediaStreamSource(stream);
-        const analyser = ctx.createAnalyser();
-        analyser.fftSize = 512;
-        analyser.smoothingTimeConstant = 0.82;
-        source.connect(analyser);
-
-        const data = new Uint8Array(analyser.fftSize);
-        const hiTh = 0.022;
-        const loTh = 0.014;
-
-        const tick = () => {
-          if (cancelled) return;
-          analyser.getByteTimeDomainData(data);
-          let sum = 0;
-          for (let i = 0; i < data.length; i++) {
-            const v = (data[i] - 128) / 128;
-            sum += v * v;
-          }
-          const rms = Math.sqrt(sum / data.length);
-
-          if (rms > hiTh) {
-            voicedRef.current = true;
-            consecutiveLow = 0;
-            setUserSpeaking(true);
-          } else if (rms < loTh) {
-            consecutiveLow++;
-            if (consecutiveLow >= 14 && voicedRef.current) {
-              voicedRef.current = false;
-              bumpAgentGlow(5000);
-              setUserSpeaking(false);
-              consecutiveLow = 0;
-            }
-          } else {
-            consecutiveLow = Math.max(0, consecutiveLow - 1);
-          }
-
-          rafRef.current = requestAnimationFrame(tick);
+      const stream = await openMicrophone();
+      streamRef.current = stream;
+      stream.getAudioTracks().forEach((track) => {
+        track.onended = () => {
+          setMicReady(false);
+          void ensureMicrophone();
         };
-        rafRef.current = requestAnimationFrame(tick);
-      } catch {
-        /* mic denied */
-      }
+      });
+      setMicReady(true);
+      setError((prev) =>
+        prev?.includes("Microphone") || prev?.includes("microphone") ? null : prev
+      );
+      return true;
+    } catch {
+      setMicReady(false);
+      setError("Microphone access is required. Allow the mic in your browser settings and try again.");
+      return false;
     }
+  }, []);
 
-    void run();
-
+  useEffect(() => {
+    if (!agentId || isPlaceholder) return;
+    void ensureMicrophone();
     return () => {
-      cancelled = true;
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
       void audioCtxRef.current?.close().catch(() => {});
       audioCtxRef.current = null;
     };
-  }, [sessionActive, bumpAgentGlow]);
+  }, [agentId, isPlaceholder, ensureMicrophone]);
+
+  useEffect(() => {
+    if (!sessionActive || !micReady) {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      setUserSpeaking(false);
+      return;
+    }
+
+    const stream = streamRef.current;
+    if (!stream) return;
+
+    let cancelled = false;
+    const voicedRef = { current: false };
+    let consecutiveLow = 0;
+
+    const ctx = audioCtxRef.current ?? new AudioContext();
+    audioCtxRef.current = ctx;
+    if (ctx.state === "suspended") void ctx.resume();
+
+    const source = ctx.createMediaStreamSource(stream);
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 512;
+    analyser.smoothingTimeConstant = 0.82;
+    source.connect(analyser);
+
+    const data = new Uint8Array(analyser.fftSize);
+    const hiTh = 0.022;
+    const loTh = 0.014;
+
+    const tick = () => {
+      if (cancelled) return;
+      analyser.getByteTimeDomainData(data);
+      let sum = 0;
+      for (let i = 0; i < data.length; i++) {
+        const v = (data[i] - 128) / 128;
+        sum += v * v;
+      }
+      const rms = Math.sqrt(sum / data.length);
+
+      if (rms > hiTh) {
+        voicedRef.current = true;
+        consecutiveLow = 0;
+        setUserSpeaking(true);
+      } else if (rms < loTh) {
+        consecutiveLow++;
+        if (consecutiveLow >= 14 && voicedRef.current) {
+          voicedRef.current = false;
+          bumpAgentGlow(5000);
+          setUserSpeaking(false);
+          consecutiveLow = 0;
+        }
+      } else {
+        consecutiveLow = Math.max(0, consecutiveLow - 1);
+      }
+
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+
+    return () => {
+      cancelled = true;
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      source.disconnect();
+    };
+  }, [sessionActive, micReady, bumpAgentGlow]);
 
   const orbMode: VoiceOrbMode = (() => {
     if (connecting) return "connecting";
@@ -333,8 +370,9 @@ export function ElevenLabsVoice({ agentId, apiToken, onConversationStart }: Prop
     if (voiceSessionLoading) return "Preparing secure voice session…";
     if (!scriptReady) return "Loading voice…";
     if (apiToken && !signedUrl) return "Voice session unavailable";
+    if (!micReady) return "Allow microphone access to continue…";
     if (connecting) return "Connecting…";
-    if (!sessionActive) return "Ready when you are";
+    if (!sessionActive) return "Microphone on — tap Start when you’re ready";
     if (Date.now() < agentGlowUntil) return "Companion is speaking…";
     if (userSpeaking) return "Listening to you…";
     return "Companion is here — say hi, or type below";
@@ -346,6 +384,9 @@ export function ElevenLabsVoice({ agentId, apiToken, onConversationStart }: Prop
       setError("Voice session not ready. Check API logs and ELEVENLABS_API_KEY.");
       return;
     }
+    const micOk = await ensureMicrophone();
+    if (!micOk) return;
+
     setError(null);
     setConnecting(true);
 
@@ -403,8 +444,8 @@ export function ElevenLabsVoice({ agentId, apiToken, onConversationStart }: Prop
           Conversation
         </h2>
         <p className="mx-auto mt-2 max-w-sm text-center text-sm leading-relaxed text-bridge-muted">
-          Voice stays inside Bridge — not a separate phone call. Start here, allow the mic once,
-          then talk naturally.
+          Voice stays inside Bridge — not a separate phone call. Your microphone stays on while
+          you&apos;re here so you can talk naturally.
         </p>
 
         <div className="mt-6 flex flex-col items-center">
@@ -424,7 +465,12 @@ export function ElevenLabsVoice({ agentId, apiToken, onConversationStart }: Prop
               type="button"
               className="btn-primary min-h-[48px] flex-1 px-8 py-3.5 text-base sm:max-w-xs sm:flex-none"
               disabled={
-                !scriptReady || connecting || isPlaceholder || voiceSessionLoading || Boolean(apiToken && !signedUrl)
+                !scriptReady ||
+                !micReady ||
+                connecting ||
+                isPlaceholder ||
+                voiceSessionLoading ||
+                Boolean(apiToken && !signedUrl)
               }
               onClick={handleStart}
             >
