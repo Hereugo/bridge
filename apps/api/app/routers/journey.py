@@ -181,6 +181,11 @@ def advance_to_wingman(
     )
     if not match:
         raise HTTPException(status_code=400, detail="No match found")
+    if journey.phase not in (Phase.MATCHED, Phase.WINGMAN):
+        raise HTTPException(
+            status_code=400,
+            detail="Complete the Know phase and matching before joining the introduction call",
+        )
     journey.phase = Phase.WINGMAN
     user.current_phase = Phase.WINGMAN
     db.commit()

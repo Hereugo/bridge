@@ -55,6 +55,7 @@ class LiveKitTokenOut(BaseModel):
     token: str
     room_name: str
     livekit_url: str
+    partner_display_name: str | None = None
 
 
 class AuthSyncRequest(BaseModel):

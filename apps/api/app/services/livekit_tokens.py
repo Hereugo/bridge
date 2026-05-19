@@ -6,6 +6,18 @@ from livekit import api
 from app.config import settings
 
 
+def normalize_livekit_url(url: str) -> str:
+    """Ensure browser-safe WebSocket URL (wss when API is configured with ws)."""
+    if not url:
+        return url
+    u = url.strip()
+    if u.startswith("https://"):
+        return u.replace("https://", "wss://", 1)
+    if u.startswith("http://"):
+        return u.replace("http://", "ws://", 1)
+    return u
+
+
 def create_room_token(room_name: str, identity: str, name: str) -> str:
     token = api.AccessToken(settings.livekit_api_key, settings.livekit_api_secret)
     token.with_identity(identity).with_name(name).with_ttl(timedelta(hours=2))

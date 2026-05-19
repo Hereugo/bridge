@@ -61,7 +61,7 @@ export default async function middleware(
   if (request.nextUrl.pathname.startsWith("/api")) {
     return proxyApiRequest(request);
   }
-  return authMiddleware(request, event);
+  return authMiddleware(request as Parameters<typeof authMiddleware>[0], event);
 }
 
 export const config = {

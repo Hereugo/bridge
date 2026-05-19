@@ -144,13 +144,7 @@ export default function KnowPage() {
           <button
             type="button"
             className="btn-primary mt-5 w-full md:w-auto md:min-w-[200px]"
-            onClick={async () => {
-              await apiFetch("/journey/advance-wingman", {
-                method: "POST",
-                token: session!.apiToken!,
-              });
-              router.push("/matched");
-            }}
+            onClick={() => router.push("/matched")}
           >
             See introduction
           </button>

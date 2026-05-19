@@ -1,4 +1,13 @@
 services:
+  livekit:
+    image: livekit/livekit-server:latest
+    command: --dev
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+    environment:
+      LIVEKIT_KEYS: "devkey: secret"
+
   postgres:
     image: postgres:16-alpine
     environment:
@@ -27,9 +36,11 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
       ELEVENLABS_WEBHOOK_SECRET: ${ELEVENLABS_WEBHOOK_SECRET:-}
-      LIVEKIT_URL: ${LIVEKIT_URL:-}
-      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-}
-      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
+      LIVEKIT_URL: ${LIVEKIT_URL:-ws://livekit:7880}
+      LIVEKIT_PUBLIC_URL: ${LIVEKIT_PUBLIC_URL:-ws://localhost:7880}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-devkey}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-secret}
+      BRIDGE_AGENT_INTERNAL_KEY: ${BRIDGE_AGENT_INTERNAL_KEY:-dev-agent-key}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       MATCHING_LLM_PROVIDER: ${MATCHING_LLM_PROVIDER:-openai}
@@ -60,13 +71,15 @@ services:
       context: .
       dockerfile: apps/agent/Dockerfile
     environment:
-      LIVEKIT_URL: ${LIVEKIT_URL:-}
-      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-}
-      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
+      LIVEKIT_URL: ${LIVEKIT_URL:-ws://livekit:7880}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-devkey}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-secret}
+      BRIDGE_AGENT_INTERNAL_KEY: ${BRIDGE_AGENT_INTERNAL_KEY:-dev-agent-key}
       ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
       API_URL: http://api:8000
     depends_on:
       - api
+      - livekit
 
   worker:
     build:

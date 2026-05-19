@@ -12,8 +12,10 @@ class Settings(BaseSettings):
     elevenlabs_webhook_secret: str = ""
 
     livekit_url: str = ""
+    livekit_public_url: str = ""
     livekit_api_key: str = ""
     livekit_api_secret: str = ""
+    bridge_agent_internal_key: str = "dev-agent-key"
 
     openai_api_key: str = ""
     anthropic_api_key: str = ""
